@@ -37,10 +37,10 @@ func (ftp *FTP) Close() error {
 }
 
 type (
-// WalkFunc is called on each path in a Walk. Errors are filtered through WalkFunc
+	// WalkFunc is called on each path in a Walk. Errors are filtered through WalkFunc
 	WalkFunc func(path string, info os.FileMode, err error) error
 
-// RetrFunc is passed to Retr and is the handler for the stream received for a given path
+	// RetrFunc is passed to Retr and is the handler for the stream received for a given path
 	RetrFunc func(r io.Reader) error
 )
 
@@ -267,13 +267,13 @@ func (ftp *FTP) Type(t TypeCode) error {
 type TypeCode string
 
 const (
-// TypeASCII for ASCII
+	// TypeASCII for ASCII
 	TypeASCII = "A"
-// TypeEBCDIC for EBCDIC
+	// TypeEBCDIC for EBCDIC
 	TypeEBCDIC = "E"
-// TypeImage for an Image
+	// TypeImage for an Image
 	TypeImage = "I"
-// TypeLocal for local byte size
+	// TypeLocal for local byte size
 	TypeLocal = "L"
 )
 
@@ -373,7 +373,6 @@ func (ftp *FTP) send(command string, arguments ...interface{}) error {
 }
 
 // Pasv enables passive data connection and returns port number
-
 func (ftp *FTP) Pasv() (port int, err error) {
 	doneChan := make(chan int, 1)
 	go func() {
@@ -520,8 +519,8 @@ func (ftp *FTP) Stat(path string) ([]string, error) {
 		return nil, err
 	}
 	if !strings.HasPrefix(stat, StatusFileStatus) &&
-	!strings.HasPrefix(stat, StatusDirectoryStatus) &&
-	!strings.HasPrefix(stat, StatusSystemStatus) {
+		!strings.HasPrefix(stat, StatusDirectoryStatus) &&
+		!strings.HasPrefix(stat, StatusSystemStatus) {
 		return nil, errors.New(stat)
 	}
 	if strings.HasPrefix(stat, StatusSystemStatus) {
@@ -716,10 +715,37 @@ func (ftp *FTP) Login(username string, password string) (err error) {
 	}
 
 	if _, err = ftp.cmd("230", "PASS %s", password); err != nil {
-		return
+		return err
 	}
 
 	return
+}
+
+// LoginAuthTLS blends Auth TLS flow with login
+func (ftp *FTP) LoginAuthTLS(config *tls.Config, username, password string) error {
+	if _, err := ftp.cmd("234", "AUTH TLS"); err != nil {
+		return err
+	}
+
+	// wrap tls on existing connection
+	ftp.tlsconfig = config
+	ftp.conn = tls.Client(ftp.conn, config)
+	ftp.writer = bufio.NewWriter(ftp.conn)
+	ftp.reader = bufio.NewReader(ftp.conn)
+
+	if err := ftp.Login(username, password); err != nil {
+		return err
+	}
+
+	if _, err := ftp.cmd(StatusOK, "PBSZ 0"); err != nil {
+		return err
+	}
+
+	if _, err := ftp.cmd(StatusOK, "PROT P"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Connect to server at addr (format "host:port"). debug is OFF
@@ -773,4 +799,3 @@ func (ftp *FTP) Size(path string) (size int, err error) {
 
 	return strconv.Atoi(line[4 : len(line)-2])
 }
-

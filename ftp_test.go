@@ -1,6 +1,11 @@
 package goftp
 
-import "testing"
+import (
+	"crypto/tls"
+	"fmt"
+	"os"
+	"testing"
+)
 
 //import "fmt"
 
@@ -55,4 +60,35 @@ func TestLogin_ugly(t *testing.T) {
 	if len(str) > 0 {
 		t.Error(str)
 	}
+}
+
+func TestLoginAuthTLS(t *testing.T) {
+	host := os.Getenv("TEST_FTPES_HOST")
+	port := os.Getenv("TEST_FTPES_PORT")
+	username := os.Getenv("TEST_FTPES_USERNAME")
+	password := os.Getenv("TEST_FTPES_PASSWORD")
+
+	connection, err := ConnectDbg(fmt.Sprintf("%s:%s", host, port))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := &tls.Config{
+		ServerName:         host,
+		MinVersion:         tls.VersionTLS12,
+		MaxVersion:         tls.VersionTLS12,
+		ClientSessionCache: tls.NewLRUClientSessionCache(32),
+		ClientAuth:         tls.RequestClientCert,
+	}
+
+	if err = connection.LoginAuthTLS(config, username, password); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = connection.List("/"); err != nil {
+		t.Fatal(err)
+	}
+
+	connection.Close()
+	return
 }
